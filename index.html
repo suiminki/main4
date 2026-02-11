@@ -18,7 +18,7 @@
     *{ box-sizing:border-box; }
     body{
       margin:0;
-      min-height: 100dvh; /* mobile-safe */
+      min-height: 100dvh;
       color:var(--text);
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       background:
@@ -132,7 +132,7 @@
       letter-spacing:.2px;
       transition: transform .05s ease, background .15s ease, border-color .15s ease;
       user-select:none;
-      min-height: 44px; /* mobile tap target */
+      min-height: 44px;
     }
     button:hover{ background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.24); }
     button:active{ transform: translateY(1px); }
@@ -182,7 +182,7 @@
       background: rgba(0,0,0,.25);
       color: var(--text);
       outline:none;
-      min-height: 44px; /* mobile tap target */
+      min-height: 44px;
     }
     input[type="range"]{ width:100%; min-height: 44px; }
 
@@ -286,8 +286,8 @@
           <button id="reset">Reset</button>
         </div>
         <div class="warn" id="warn"></div>
-        <div class="notice">
-          Settings lock while running. Stop first if you want to change range, timer, or language.
+        <div class="notice" id="voiceNote">
+          Tip: Voice switching depends on your device. iPhone often allows only one voice in browsers.
         </div>
       </div>
     </section>
@@ -330,7 +330,7 @@
         </div>
 
         <div class="field">
-          <label>Voice</label>
+          <label>Voice (female preferred)</label>
           <select id="voice"></select>
 
           <div class="row2" style="margin-top:10px;">
@@ -381,6 +381,7 @@
   const elStatus = $("status");
   const elWarn = $("warn");
   const lockedHint = $("lockedHint");
+  const voiceNote = $("voiceNote");
 
   const minEl = $("min");
   const maxEl = $("max");
@@ -422,7 +423,7 @@
 
   function setSettingsLocked(locked){
     const controls = [minEl, maxEl, intervalEl, langEl, voiceSel, rateEl, pitchEl, noRepeats, endAfterOne];
-    controls.forEach(el => el.disabled = locked);
+    controls.forEach(el => el.disabled = locked || el.dataset.lockedByDevice === "1");
     lockedHint.classList.toggle("show", locked);
   }
 
@@ -457,46 +458,75 @@
     count.textContent = `${history.length} ${history.length === 1 ? "number" : "numbers"}`;
   }
 
-  function bestVoiceForLang(targetLang){
-    const tl = (targetLang || "").toLowerCase();
-    const exact = voicesCache.find(v => (v.lang || "").toLowerCase() === tl);
-    if (exact) return exact;
-    const base = tl.split("-")[0];
-    const partial = voicesCache.find(v => (v.lang || "").toLowerCase().startsWith(base));
-    if (partial) return partial;
+  // ---- Female voice preference (best effort) ----
+  function findBestFemaleVoice(list){
+    const femaleKeywords = [
+      "female","woman","girl",
+      "samantha","victoria","karen",
+      "zira",
+      "google uk english female","google us english female",
+      "tokyo","kyoko","nanami","misaki","yumi" // (some JP voice names on certain systems)
+    ];
+    const sorted = list.slice().sort((a,b)=> (b.default ? 1 : 0) - (a.default ? 1 : 0));
+    for (const v of sorted){
+      const name = (v.name || "").toLowerCase();
+      if (femaleKeywords.some(k => name.includes(k))) return v;
+    }
     return null;
   }
 
   function loadVoices(){
     if (!("speechSynthesis" in window)) return;
+
     voicesCache = window.speechSynthesis.getVoices() || [];
 
     const target = (langEl.value || "").toLowerCase();
     const base = target.split("-")[0];
 
-    const match = [];
-    const other = [];
-    for (const v of voicesCache){
+    let filtered = voicesCache.filter(v => {
       const l = (v.lang || "").toLowerCase();
-      if (l === target || l.startsWith(base)) match.push(v);
-      else other.push(v);
+      return l === target || l.startsWith(base);
+    });
+
+    if (filtered.length === 0){
+      filtered = voicesCache.slice(); // fallback to all
     }
-    const ordered = [...match, ...other];
 
     voiceSel.innerHTML = "";
-    if (ordered.length === 0){
+
+    if (filtered.length === 0){
       const opt = document.createElement("option");
-      opt.textContent = "Default voice (mobile may not list voices)";
+      opt.textContent = "Default voice (browser)";
       opt.value = "";
       voiceSel.appendChild(opt);
+      voiceSel.disabled = true;
+      voiceSel.dataset.lockedByDevice = "1";
+      voiceNote.textContent = "No voices exposed by this browser/device.";
       return;
     }
-    ordered.forEach(v => {
+
+    filtered.forEach(v => {
       const opt = document.createElement("option");
       opt.value = v.name;
       opt.textContent = `${v.name} (${v.lang})`;
       voiceSel.appendChild(opt);
     });
+
+    // Auto-select best female voice if available
+    const female = findBestFemaleVoice(filtered);
+    if (female) voiceSel.value = female.name;
+    else voiceSel.selectedIndex = 0;
+
+    // iOS often exposes only one voice; disable selection to avoid confusion
+    const disable = filtered.length <= 1;
+    voiceSel.disabled = disable;
+    voiceSel.dataset.lockedByDevice = disable ? "1" : "0";
+
+    if (disable){
+      voiceNote.textContent = "Your browser exposes only one voice (common on iPhone). Voice switching may not be possible.";
+    } else {
+      voiceNote.textContent = "Female voice is selected by default when available.";
+    }
   }
 
   function speak(text){
@@ -505,6 +535,7 @@
       showWarn("Text-to-speech is not supported in this browser.");
       return;
     }
+
     window.speechSynthesis.cancel();
 
     const u = new SpeechSynthesisUtterance(String(text));
@@ -513,12 +544,13 @@
     u.pitch = Number(pitchEl.value) || 1;
     u.volume = 1;
 
-    const chosenByName = voicesCache.find(v => v.name === voiceSel.value);
-    const chosen = chosenByName || bestVoiceForLang(u.lang);
+    const chosen = voicesCache.find(v => v.name === voiceSel.value);
     if (chosen) u.voice = chosen;
 
     elStatus.textContent = timer ? "Running (speaking…)" : "Speaking…";
-    u.onend = () => (elStatus.textContent = timer ? "Running" : elStatus.textContent);
+    u.onend = () => {
+      if (timer) elStatus.textContent = "Running";
+    };
 
     window.speechSynthesis.speak(u);
   }
@@ -559,7 +591,7 @@
           gameOver();
           return;
         } else {
-          rebuildPool(); // continuous mode: refill
+          rebuildPool();
         }
       }
       n = pickRandomFromPool();
@@ -580,7 +612,9 @@
 
   function start(){
     clearWarn();
-    loadVoices(); // user gesture helps unlock voices
+
+    // user gesture helps some browsers populate voices
+    loadVoices();
 
     const secs = Number(intervalEl.value);
     if (!Number.isFinite(secs) || secs < 1){
@@ -589,7 +623,6 @@
     }
     if (timer) return;
 
-    // fresh game
     rebuildPool();
 
     setSettingsLocked(true);
@@ -597,7 +630,6 @@
     btnStop.disabled = false;
     elStatus.textContent = "Running";
 
-    // First call immediately
     pickAndSpeakOnce();
     timer = setInterval(pickAndSpeakOnce, secs * 1000);
   }
@@ -627,11 +659,8 @@
   });
   btnClearHistory.addEventListener("click", () => { history = []; refreshHistoryUI(); });
 
-  // UI displays
   rateEl.addEventListener("input", () => rateVal.textContent = `${Number(rateEl.value).toFixed(2)}×`);
   pitchEl.addEventListener("input", () => pitchVal.textContent = `${Number(pitchEl.value).toFixed(2)}×`);
-
-  // language change (only possible when stopped)
   langEl.addEventListener("change", () => loadVoices());
 
   // Init
