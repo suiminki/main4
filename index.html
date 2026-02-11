@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Random Number Speaker</title>
+  <style>
+    :root{
+      --bg1:#0b1020; --bg2:#111a33;
+      --card: rgba(255,255,255,.08);
+      --stroke: rgba(255,255,255,.16);
+      --text: rgba(255,255,255,.92);
+      --muted: rgba(255,255,255,.68);
+      --shadow: 0 20px 60px rgba(0,0,0,.35);
+      --radius: 18px;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0; min-height:100vh; color:var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:
+        radial-gradient(900px 600px at 20% 15%, rgba(99,102,241,.35), transparent 55%),
+        radial-gradient(900px 600px at 80% 20%, rgba(56,189,248,.28), transparent 55%),
+        radial-gradient(900px 700px at 50% 110%, rgba(34,197,94,.22), transparent 60%),
+        linear-gradient(180deg, var(--bg1), var(--bg2));
+      padding: 28px 16px 40px;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .app{
+      width:min(980px, 100%);
+      display:grid; gap:18px;
+      grid-template-columns: 1.05fr .95fr;
+    }
+    @media (max-width: 900px){ .app{ grid-template-columns:1fr; } }
+    .panel{
+      background: linear-gradient(180deg, var(--card), rgba(255,255,255,.06));
+      border: 1px solid var(--stroke);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .head{
+      padding: 18px 18px 10px;
+      display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+    }
+    .title{ margin:0; font-size: 18px; letter-spacing:.2px; }
+    .subtitle{ margin:6px 0 0; color:var(--muted); font-size: 13px; line-height:1.35; }
+
+    .ballWrap{ padding: 12px 18px 20px; display:flex; align-items:center; justify-content:center; }
+    .ball{
+      width: 240px; height: 240px; border-radius: 999px;
+      background:
+        radial-gradient(120px 120px at 30% 25%, rgba(255,255,255,.75), rgba(255,255,255,0) 60%),
+        radial-gradient(160px 160px at 70% 75%, rgba(255,255,255,.18), rgba(255,255,255,0) 62%),
+        linear-gradient(135deg, rgba(99,102,241,.85), rgba(56,189,248,.70), rgba(34,197,94,.55));
+      border: 1px solid rgba(255,255,255,.18);
+      box-shadow: 0 25px 70px rgba(0,0,0,.45);
+      position:relative;
+      display:flex; align-items:center; justify-content:center;
+    }
+    .ball::after{
+      content:""; position:absolute; inset: 18px; border-radius: 999px;
+      background: rgba(8,12,24,.55);
+      border: 1px solid rgba(255,255,255,.14);
+      backdrop-filter: blur(10px);
+    }
+    .ballContent{ position:relative; text-align:center; z-index:1; padding: 10px 16px; }
+    .num{ font-size: 78px; font-weight: 900; line-height:1; letter-spacing: .02em; }
+    .smallLine{ margin-top: 12px; font-size: 13px; color: var(--muted); min-height: 18px; }
+
+    .controls{
+      padding: 14px 18px 18px;
+      border-top: 1px solid rgba(255,255,255,.10);
+      display:flex; flex-direction:column; gap:12px;
+    }
+    .btnRow{ display:flex; gap:10px; flex-wrap:wrap; }
+    button{
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.10);
+      color: var(--text);
+      padding: 11px 14px;
+      border-radius: 12px;
+      cursor:pointer;
+      font-weight: 650;
+      letter-spacing:.2px;
+      transition: transform .05s ease, background .15s ease, border-color .15s ease;
+      user-select:none;
+    }
+    button:hover{ background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.24); }
+    button:active{ transform: translateY(1px); }
+    button.primary{
+      background: linear-gradient(135deg, rgba(99,102,241,.95), rgba(56,189,248,.85));
+      border-color: rgba(255,255,255,.22);
+    }
+    button.primary:hover{ filter: brightness(1.05); }
+    button.danger{
+      background: rgba(239,68,68,.20);
+      border-color: rgba(239,68,68,.35);
+    }
+    button:disabled{ opacity:.45; cursor:not-allowed; }
+
+    .grid{ display:grid; gap:12px; grid-template-columns: 1fr 1fr; }
+    @media (max-width: 520px){ .grid{ grid-template-columns:1fr; } }
+
+    .field{
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 14px;
+      padding: 12px;
+    }
+    .field label{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      font-size: 12px; color: var(--muted); margin-bottom: 8px;
+    }
+    input[type="number"], select{
+      width:100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.25);
+      color: var(--text);
+      outline:none;
+    }
+    input[type="range"]{ width:100%; }
+
+    .row2{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    @media (max-width: 520px){ .row2{ grid-template-columns:1fr; } }
+
+    .toggle{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+    }
+    .toggle span{ color: var(--muted); font-size: 13px; }
+    .toggle input{ transform: scale(1.15); }
+
+    .notice{
+      font-size: 13px; color: var(--muted);
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255,255,255,.06);
+      border: 1px dashed rgba(255,255,255,.20);
+      line-height:1.4;
+    }
+    .warn{
+      display:none;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(245,158,11,.16);
+      border: 1px solid rgba(245,158,11,.35);
+      color: rgba(255,255,255,.90);
+      font-size: 13px;
+      line-height:1.35;
+    }
+
+    .history{ padding: 14px 18px 18px; display:flex; flex-direction:column; gap:10px; }
+    .chips{ display:flex; flex-wrap:wrap; gap:8px; }
+    .chip{
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.12);
+      font-size: 13px;
+      color: rgba(255,255,255,.85);
+    }
+    .muted{ color:var(--muted); font-size: 13px; }
+
+    .lockedHint{
+      display:none;
+      margin-top: 8px;
+      font-size: 12px;
+      color: rgba(255,255,255,.75);
+    }
+    .lockedHint.show{ display:block; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section class="panel">
+      <div class="head">
+        <div>
+          <h1 class="title">Random Number Speaker</h1>
+          <p class="subtitle">Press <b>Start</b> and it will call random numbers by your timer.</p>
+        </div>
+        <div class="muted" id="status">Stopped</div>
+      </div>
+
+      <div class="ballWrap">
+        <div class="ball" aria-live="polite">
+          <div class="ballContent">
+            <div class="num" id="number">—</div>
+            <div class="smallLine" id="spoken">Waiting…</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="btnRow">
+          <button class="primary" id="start">Start</button>
+          <button class="danger" id="stop" disabled>Stop</button>
+          <button id="speakAgain" disabled>Speak again</button>
+          <button id="reset">Reset</button>
+        </div>
+        <div class="warn" id="warn"></div>
+        <div class="notice">
+          Tip: Some browsers only unlock voices after a click. If voice options look empty, press <b>Start</b> once.
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <div class="head">
+        <div>
+          <h2 class="title" style="font-size:16px;margin:0;">Settings</h2>
+          <p class="subtitle">Settings lock while running. Stop first to change them.</p>
+        </div>
+      </div>
+
+      <div class="controls" style="border-top:none;">
+        <div class="grid">
+          <div class="field">
+            <label>Min</label>
+            <input id="min" type="number" value="1" />
+          </div>
+          <div class="field">
+            <label>Max</label>
+            <input id="max" type="number" value="100" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Timer (seconds between numbers)</label>
+          <input id="interval" type="number" value="3" min="1" />
+        </div>
+
+        <div class="field">
+          <label>Language</label>
+          <select id="lang">
+            <option value="en-US" selected>English (US)</option>
+            <option value="en-GB">English (UK)</option>
+            <option value="ja-JP">日本語 (Japanese)</option>
+            <option value="ne-NP">नेपाली (Nepali)</option>
+            <option value="hi-IN">हिन्दी (Hindi)</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Voice</label>
+          <select id="voice"></select>
+          <div class="row2" style="margin-top:10px;">
+            <div>
+              <label style="margin:0 0 6px;color:var(--muted);font-size:12px;">Speed</label>
+              <input id="rate" type="range" min="0.7" max="1.3" value="1" step="0.05" />
+              <div class="muted" id="rateVal">1.00×</div>
+            </div>
+            <div>
+              <label style="margin:0 0 6px;color:var(--muted);font-size:12px;">Pitch</label>
+              <input id="pitch" type="range" min="0.8" max="1.2" value="1" step="0.05" />
+              <div class="muted" id="pitchVal">1.00×</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="toggle">
+          <span>No repeats (recommended)</span>
+          <input id="noRepeats" type="checkbox" checked />
+        </div>
+
+        <div class="toggle">
+          <span>End after one round (say “Game over”)</span>
+          <input id="endAfterOne" type="checkbox" checked />
+        </div>
+
+        <div class="lockedHint" id="lockedHint">🔒 Settings are locked while the game is running.</div>
+      </div>
+
+      <div class="history">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;">
+          <div>
+            <div style="font-weight:750;">History</div>
+            <div class="muted" id="count">0 numbers</div>
+          </div>
+          <button id="clearHistory">Clear</button>
+        </div>
+        <div class="chips" id="chips"></div>
+      </div>
+    </aside>
+  </div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  const elNumber = $("number");
+  const elSpoken = $("spoken");
+  const elStatus = $("status");
+  const elWarn = $("warn");
+  const lockedHint = $("lockedHint");
+
+  const minEl = $("min");
+  const maxEl = $("max");
+  const intervalEl = $("interval");
+  const langEl = $("lang");
+
+  const voiceSel = $("voice");
+  const rateEl = $("rate");
+  const pitchEl = $("pitch");
+  const rateVal = $("rateVal");
+  const pitchVal = $("pitchVal");
+
+  const noRepeats = $("noRepeats");
+  const endAfterOne = $("endAfterOne");
+
+  const btnStart = $("start");
+  const btnStop = $("stop");
+  const btnSpeakAgain = $("speakAgain");
+  const btnReset = $("reset");
+  const btnClearHistory = $("clearHistory");
+
+  const chips = $("chips");
+  const count = $("count");
+
+  let lastNumber = null;
+  let history = [];
+  let pool = [];
+  let timer = null;
+  let voicesCache = [];
+
+  function showWarn(msg){
+    elWarn.textContent = msg;
+    elWarn.style.display = "block";
+  }
+  function clearWarn(){
+    elWarn.textContent = "";
+    elWarn.style.display = "none";
+  }
+
+  function setSettingsLocked(locked){
+    const controls = [
+      minEl, maxEl, intervalEl, langEl, voiceSel, rateEl, pitchEl, noRepeats, endAfterOne
+    ];
+    controls.forEach(el => el.disabled = locked);
+    lockedHint.classList.toggle("show", locked);
+  }
+
+  function validateRange(){
+    const min = Number(minEl.value);
+    const max = Number(maxEl.value);
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return "Please enter valid min/max numbers.";
+    if (min > max) return "Min must be less than or equal to Max.";
+    return null;
+  }
+
+  function rebuildPool(){
+    const min = Number(minEl.value);
+    const max = Number(maxEl.value);
+    pool = [];
+    for (let i = min; i <= max; i++) pool.push(i);
+  }
+
+  function pickRandomFromPool(){
+    const idx = Math.floor(Math.random() * pool.length);
+    return pool.splice(idx, 1)[0];
+  }
+
+  function refreshHistoryUI(){
+    chips.innerHTML = "";
+    for (const n of history.slice().reverse()){
+      const div = document.createElement("div");
+      div.className = "chip";
+      div.textContent = String(n);
+      chips.appendChild(div);
+    }
+    count.textContent = `${history.length} ${history.length === 1 ? "number" : "numbers"}`;
+  }
+
+  function bestVoiceForLang(targetLang){
+    const tl = (targetLang || "").toLowerCase();
+    const exact = voicesCache.find(v => (v.lang || "").toLowerCase() === tl);
+    if (exact) return exact;
+    const base = tl.split("-")[0];
+    const partial = voicesCache.find(v => (v.lang || "").toLowerCase().startsWith(base));
+    if (partial) return partial;
+    return null;
+  }
+
+  function loadVoices(){
+    if (!("speechSynthesis" in window)) return;
+    voicesCache = window.speechSynthesis.getVoices() || [];
+
+    const target = (langEl.value || "").toLowerCase();
+    const base = target.split("-")[0];
+
+    const match = [];
+    const other = [];
+    for (const v of voicesCache){
+      const l = (v.lang || "").toLowerCase();
+      if (l === target || l.startsWith(base)) match.push(v);
+      else other.push(v);
+    }
+    const ordered = [...match, ...other];
+
+    voiceSel.innerHTML = "";
+    if (ordered.length === 0){
+      const opt = document.createElement("option");
+      opt.textContent = "Default voice (browser)";
+      voiceSel.appendChild(opt);
+      return;
+    }
+    ordered.forEach(v => {
+      const opt = document.createElement("option");
+      opt.value = v.name;
+      opt.textContent = `${v.name} (${v.lang})`;
+      voiceSel.appendChild(opt);
+    });
+  }
+
+  function speak(text){
+    clearWarn();
+    if (!("speechSynthesis" in window)){
+      showWarn("Text-to-speech is not supported in this browser.");
+      return;
+    }
+    window.speechSynthesis.cancel();
+
+    const u = new SpeechSynthesisUtterance(String(text));
+    u.lang = langEl.value || "en-US";
+    u.rate = Number(rateEl.value) || 1;
+    u.pitch = Number(pitchEl.value) || 1;
+    u.volume = 1;
+
+    const chosenByName = voicesCache.find(v => v.name === voiceSel.value);
+    const chosen = chosenByName || bestVoiceForLang(u.lang);
+    if (chosen) u.voice = chosen;
+
+    elStatus.textContent = timer ? "Running (speaking…)" : "Speaking…";
+    u.onend = () => (elStatus.textContent = timer ? "Running" : "Stopped");
+
+    window.speechSynthesis.speak(u);
+  }
+
+  function gameOver(){
+    // Stop first (prevents extra ticks)
+    stop();
+    elSpoken.textContent = "Game over";
+    elStatus.textContent = "Game over";
+    speak("Game over");
+  }
+
+  function pickAndSpeakOnce(){
+    const err = validateRange();
+    if (err){ showWarn(err); return; }
+
+    const min = Number(minEl.value);
+    const max = Number(maxEl.value);
+
+    let n;
+
+    if (noRepeats.checked){
+      // If pool is empty, that means the round finished
+      if (pool.length === 0){
+        if (endAfterOne.checked){
+          // End the game instead of refilling
+          gameOver();
+          return;
+        } else {
+          // Refill and continue forever
+          rebuildPool();
+        }
+      }
+      n = pickRandomFromPool();
+    } else {
+      // repeats allowed
+      n = Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    lastNumber = n;
+    elNumber.textContent = String(n);
+    elSpoken.textContent = `Says: “${n}”`;
+    btnSpeakAgain.disabled = false;
+
+    history.push(n);
+    refreshHistoryUI();
+
+    speak(n);
+  }
+
+  function start(){
+    clearWarn();
+
+    loadVoices(); // unlock voices after user click
+
+    const secs = Number(intervalEl.value);
+    if (!Number.isFinite(secs) || secs < 1){
+      showWarn("Timer must be 1 second or more.");
+      return;
+    }
+    if (timer) return;
+
+    // Start game: build pool fresh for no-repeats mode
+    rebuildPool();
+
+    setSettingsLocked(true);
+    btnStart.disabled = true;
+    btnStop.disabled = false;
+    elStatus.textContent = "Running";
+
+    // First call happens immediately after Start
+    pickAndSpeakOnce();
+
+    timer = setInterval(pickAndSpeakOnce, secs * 1000);
+  }
+
+  function stop(){
+    if (timer) clearInterval(timer);
+    timer = null;
+    window.speechSynthesis?.cancel?.();
+
+    setSettingsLocked(false);
+    btnStart.disabled = false;
+    btnStop.disabled = true;
+
+    if (elStatus.textContent !== "Game over"){
+      elStatus.textContent = "Stopped";
+    }
+  }
+
+  function resetAll(){
+    stop();
+    lastNumber = null;
+    history = [];
+    pool = [];
+    elNumber.textContent = "—";
+    elSpoken.textContent = "Waiting…";
+    btnSpeakAgain.disabled = true;
+    refreshHistoryUI();
+    clearWarn();
+    elStatus.textContent = "Stopped";
+  }
+
+  // Events
+  btnStart.addEventListener("click", start);
+  btnStop.addEventListener("click", stop);
+  btnReset.addEventListener("click", resetAll);
+  btnSpeakAgain.addEventListener("click", () => {
+    if (lastNumber !== null){
+      loadVoices();
+      speak(lastNumber);
+    }
+  });
+  btnClearHistory.addEventListener("click", () => { history = []; refreshHistoryUI(); });
+
+  // UI displays
+  rateEl.addEventListener("input", () => rateVal.textContent = `${Number(rateEl.value).toFixed(2)}×`);
+  pitchEl.addEventListener("input", () => pitchVal.textContent = `${Number(pitchEl.value).toFixed(2)}×`);
+
+  // When language changes (only possible when not running)
+  langEl.addEventListener("change", () => loadVoices());
+
+  // Init
+  rateVal.textContent = `${Number(rateEl.value).toFixed(2)}×`;
+  pitchVal.textContent = `${Number(pitchEl.value).toFixed(2)}×`;
+  rebuildPool();
+  refreshHistoryUI();
+  setSettingsLocked(false);
+
+  if ("speechSynthesis" in window){
+    window.speechSynthesis.addEventListener("voiceschanged", () => loadVoices());
+    loadVoices();
+  } else {
+    showWarn("Text-to-speech isn’t available in this browser.");
+  }
+</script>
+</body>
+</html>
